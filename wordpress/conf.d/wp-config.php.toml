@@ -1,0 +1,11 @@
+[template]
+src   = "wp-config.php"
+dest  = "/app/wordpress/wp-config.php"
+owner = "app"
+group = "app"
+mode  = "0644"
+keys = [
+  "/services/wordpress",
+]
+check_cmd = "/app/bin/check {{ .src }}"
+readload_cmd = "supervisorctl reload wordpress"

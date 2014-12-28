@@ -26,7 +26,7 @@ write_files:
       function start_<%= app[:name] %>() {
         eval `cat /etc/environment | sed "s/^/export /"`
         echo "Running <%= app[:name] %>"
-        docker run  -d <%= app[:docker_options]%> --name <%= app[:name] %> <%= app[:repository]%>
+        docker run  -d <%= app[:docker_options].join(' ')%> --name <%= app[:name] %> <%= app[:repository]%>
       }
       function stop_<%= app[:name] %>() {
         /usr/bin/docker kill <%= app[:name] %>

@@ -1,0 +1,11 @@
+[template]
+src   = "nginx.conf"
+dest  = "/etc/nginx/nginx.conf"
+owner = "app"
+group = "app"
+mode  = "0644"
+keys = [
+  "/services/wordpress",
+]
+check_cmd = "/app/bin/check {{ .src }}"
+readload_cmd = "supervisorctl restart wordpress"

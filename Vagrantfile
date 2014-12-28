@@ -66,9 +66,15 @@ Vagrant.configure('2') do |config|
       end
 
       if i == 1
-        c.vm.network 'forwarded_port', guest: 5000, host: 5000
+        c.vm.provider :virtualbox do |vb|
+          vb.memory = $core01_memory
+        end
+        c.vm.network 'forwarded_port', guest: $expose_registry, host: $expose_registry if $expose_registry
+        c.vm.network 'forwarded_port', guest: $expose_mysql, host: $expose_mysql if $expose_mysql
         c.vm.provision :shell, inline: core01_start_registry
+        c.vm.provision :shell, inline: core01_start_mysql
         @applications.each do |app|
+          c.vm.provision :shell, inline: get_base_image(app)
           case $mode
           when 'develop'
             c.vm.provision :shell, inline: core01_build_image(app)
@@ -81,6 +87,7 @@ Vagrant.configure('2') do |config|
 
       else
         @applications.each do |app|
+          c.vm.provision :shell, inline: get_base_image(app)
           c.vm.provision :shell, inline: fetch_image(app)
         end
       end

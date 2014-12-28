@@ -1,0 +1,75 @@
+#!/bin/bash
+#
+# This script is designed to be run inside the container
+#
+
+# fail hard and fast even on pipelines
+set -eo pipefail
+
+# set debug based on envvar
+[[ $DEBUG ]] && set -x
+
+DIR=$(dirname $0)
+
+# functions
+. $DIR/functions
+
+
+# Environment variables that should be passed in via `docker run` command.
+
+# Defaults for your app:
+export APP_NAME=${APP_NAME:-"wordpress"}
+export PUBLISH=${PUBLISH:-8080}
+export PORT=${PORT:-8080}
+export PROTO=${PROTO:-tcp}
+
+export SERVICES_WORDPRESS_DB_NAME=${SERVICES_WORDPRESS_DB_NAME:-"wordpress"}
+export SERVICES_WORDPRESS_DB_USER=${SERVICES_WORDPRESS_DB_USER:-"wordpress"}
+export SERVICES_WORDPRESS_DB_PASS=${SERVICES_WORDPRESS_DB_PASS:-"wordpress"}
+export SERVICES_WORDPRESS_DB_HOST=${SERVICES_WORDPRESS_DB_HOST:-"10.0.2.2"}
+
+export SERVICES_WORDPRESS_KEYS_AUTHKEY=${SERVICES_WORDPRESS_KEYS_AUTHKEY:-'v*h~-+x[.FRS<BHWf&Un->q|*X?N6J$M(iA.QDWL4Kmw3$5jA7Izqm^)Lsp5u,iS'}
+export SERVICES_WORDPRESS_KEYS_SECUREAUTHKEY=${SERVICES_WORDPRESS_KEYS_SECUREAUTHKEY:-'*8ilbIO2.8zC$*~:-d]eUB$!yK|2{GJBR]L6+D(-|>s*AKJ960+z[=cI<Zm!BLa3'}
+export SERVICES_WORDPRESS_KEYS_LOGGEDINKEY=${SERVICES_WORDPRESS_KEYS_LOGGEDINKEY:-'EFy`G+jD(+M-TMLPUuqlC$}%XkAr%RXGJ447,+p0,NiYvUfMHBE*v6VU6,N6Q+!j'}
+export SERVICES_WORDPRESS_KEYS_NONCEKEY=${SERVICES_WORDPRESS_KEYS_NONCEKEY:-'tV:s)~qe#:A.]#`CgGMWjj%k3&op{vOHY3mn?0_:`%HnzGhx5b@Je#toQRFDk5xZ'}
+export SERVICES_WORDPRESS_KEYS_AUTHSALT=${SERVICES_WORDPRESS_KEYS_AUTHSALT:-'26C_8&71YevD-vF5-z4Dr_l@6UY]o #EaS.X,4~ET=-I`?s~E}g9$7+PSX~N@y,f'}
+export SERVICES_WORDPRESS_KEYS_SECUREAUTHSALT=${SERVICES_WORDPRESS_KEYS_SECUREAUTHSALT:-'-&A7hwxlORRzclWG+if 9A:?P5~s+T6e]9Au+`%`l+Q:xO#,<[@N)o6?n%`2S-bT'}
+export SERVICES_WORDPRESS_KEYS_LOGGEDINSALT=${SERVICES_WORDPRESS_KEYS_LOGGEDINSALT:-'}t(<&@+<HI1.5f]jKoK&}.WX+[xU 1?vOjx;a kV3S!>,jN+=;yDx;sCdYQ;%d{t'}
+export SERVICES_WORDPRESS_KEYS_NONCESALT=${SERVICES_WORDPRESS_KEYS_NONCESALT:-'o]b-T/?Dy*bhTjvsZvt*0|^zZX)_q<a+o]}1O!gy[AOuy#~+d%+k?.x2MLmqfy$1'}
+
+
+if [[ -n $ETCD_HOST ]]; then
+  echo '==> $HOST or $ETCD_HOST set.  starting ${APP_NAME} etcd support.'
+  export ETCD_HOST=${ETCD_HOST:-$HOST}
+  export ETCD_PORT=${ETCD_PORT:-4001}
+  export ETCD="$ETCD_HOST:$ETCD_PORT"
+  export ETCD_PATH=${ETCD_PATH:-"/services/$APP_NAME"}
+  export ETCD_TTL=${ETCD_TTL:-10}
+  export ETCD_OPTIONS="--no-sync -C $ETCD"
+  export CONFD_OPTIONS="-node $ETCD -config-file /app/confd_etcd.toml"
+  export SLEEP_TIME=$(($ETCD_TTL/2))
+  configure_etcd
+  # App specific
+  etcd_set_default text ${text}
+else
+  echo '==> $HOST not set.  starting ${APP_NAME} without etcd support.'
+  export CONFD_OPTIONS="-config-file /app/confd_env.toml"
+  export SLEEP_TIME=10
+  # App specific equiv to etcd /services/example/text
+  export SERVICES_EXAMPLE_TEXT=${text}
+fi
+
+# wait for confd to run once and install initial templates
+until confd -onetime $CONFD_OPTIONS; do
+  echo "echo ==> ${APP_NAME}: waiting for confd to write initial templates..."
+  [[ -n $ETCD_HOST ]] && sleep $SLEEP_TIME  # sleep for half the TTL
+done
+
+echo Starting ${APP_NAME}
+
+# smart shutdown on SIGINT and SIGTERM
+trap on_exit INT TERM
+
+/usr/bin/supervisord -c /etc/supervisord.conf
+
+exit 1

@@ -2,4 +2,5 @@
 user-data
 registry/images
 registry/repositories
-registry/registry.tgz
+registry/saved
+wordpress/wordpress/wp-config.php
