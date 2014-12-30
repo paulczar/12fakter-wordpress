@@ -49,5 +49,7 @@ RUN \
 # Define default command.
 CMD ["/app/bin/boot"]
 
+VOLUME /app/wordpress
+
 # Expose ports.
 EXPOSE 8080
